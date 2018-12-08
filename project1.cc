@@ -1,19 +1,6 @@
-/* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-/*
- * pld ns-3 version of basic1: single sender through a router
- * To run: ./waf --run basic1 
- * To run and set a command-line argument: ./waf --run "basic1 --runtime=10"
- * To enable logging (to stderr), set this in the environment: NS_LOG=TcpReno=level_info
- */
-
 /*
   Network topology:
-
   A----R----B 
-
-  A--R: 10 Mbps / 10 ms delay
-  R--B: 800Kbps / 50 ms delay
-  queue at R: size 7
 */
 
 #include <iostream>
@@ -27,11 +14,9 @@
 #include "ns3/applications-module.h"
 #include "ns3/ipv4-global-routing-helper.h"
 
-// #define USE_HELPER
-
 using namespace ns3;
 
-std::string fileNameRoot = "project";    // base name for trace files, etc
+std::string fileNameRoot = "project";    
 
 void CwndChange (Ptr<OutputStreamWrapper> stream, uint32_t oldCwnd, uint32_t newCwnd)
 {
@@ -39,7 +24,7 @@ void CwndChange (Ptr<OutputStreamWrapper> stream, uint32_t oldCwnd, uint32_t new
 }
 
 static void
-TraceCwnd ()    // Trace changes to the congestion window
+TraceCwnd ()   
 {
   AsciiTraceHelper ascii;
   Ptr<OutputStreamWrapper> stream = ascii.CreateFileStream (fileNameRoot + ".cwnd");
@@ -63,16 +48,16 @@ int main (int argc, char *argv[])
   Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue ("ns3::TcpVegas"));
   //Config::SetDefault ("ns3::RttEstimator::MinRTO", TimeValue (MilliSeconds (500)));
 
-  unsigned int runtime = 20;   // seconds
-  int delayAR = 10;            // ms
-  int delayRB = 134;            // ms
-  double bottleneckBW= 10;    // Mbps
-  double fastBW = 1.5;          // Mbps
+  unsigned int runtime = 20;   
+  int delayAR = 10;            
+  int delayRB = 134;           
+  double bottleneckBW= 10;   
+  double fastBW = 1.5;          
   uint32_t queuesize = 7; 
-  uint32_t maxBytes = 0;       // 0 means "unlimited"
-
+  uint32_t maxBytes = 0;      
   CommandLine cmd;
-  // Here, we define command line options overriding some of the above.
+  
+
   cmd.AddValue ("runtime", "How long the applications should send data", runtime);
   cmd.AddValue ("delayRB", "Delay on the R--B link, in ms", delayRB);
   cmd.AddValue ("queuesize", "queue size at R", queuesize);
@@ -81,21 +66,18 @@ int main (int argc, char *argv[])
   cmd.Parse (argc, argv);
 
   std::cout << "queuesize=" << queuesize << ", delayRB=" << delayRB << std::endl;
-  //NodeContainer allNodes; allNodes.Create(3); Ptr<Node> A = allNodes.Get(0), etc
   Ptr<Node> A = CreateObject<Node> ();
   Ptr<Node> R = CreateObject<Node> ();
   Ptr<Node> B = CreateObject<Node> ();
-
-  // use PointToPointChannel and PointToPointNetDevice            
+         
   NetDeviceContainer devAR, devRB;
   PointToPointHelper AR, RB;
 
-  // create point-to-point link from A to R
+  // link from A to R
   AR.SetDeviceAttribute ("DataRate", DataRateValue (DataRate (fastBW * 1000 * 1000)));
   AR.SetChannelAttribute ("Delay", TimeValue (MilliSeconds (delayAR)));
   devAR = AR.Install(A, R);
 
-  // create point-to-point link from R to B
   RB.SetDeviceAttribute ("DataRate", DataRateValue (DataRate (bottleneckBW * 1000 * 1000)));
   RB.SetChannelAttribute ("Delay", TimeValue (MilliSeconds (delayRB)));
   RB.SetQueue("ns3::DropTailQueue","MaxSize", StringValue("7p")); 
@@ -107,7 +89,7 @@ int main (int argc, char *argv[])
   internet.Install (R);
   internet.Install (B);
 
-  // Assign IP addresses
+  // ip addresses
 
   Ipv4AddressHelper ipv4;
   ipv4.SetBase ("10.0.0.0", "255.255.255.0");
@@ -118,7 +100,7 @@ int main (int argc, char *argv[])
 
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
-  Ptr<Ipv4> A4 = A->GetObject<Ipv4>();  // gets node A's IPv4 subsystem
+  Ptr<Ipv4> A4 = A->GetObject<Ipv4>();  
   Ptr<Ipv4> B4 = B->GetObject<Ipv4>();
   Ptr<Ipv4> R4 = R->GetObject<Ipv4>();
   Ipv4Address Aaddr = A4->GetAddress(1,0).GetLocal();
@@ -130,13 +112,13 @@ int main (int argc, char *argv[])
   std::cout << "R's #1 address: " << Raddr << std::endl;
   std::cout << "R's #2 address: " << R4->GetAddress(2,0).GetLocal() << std::endl;
 
-  // create a sink on B
+  // sink 
   uint16_t Bport = 80;
   Address sinkAaddr(InetSocketAddress (Ipv4Address::GetAny (), Bport));
   PacketSinkHelper sinkA ("ns3::TcpSocketFactory", sinkAaddr);
   ApplicationContainer sinkAppA = sinkA.Install (B);
   sinkAppA.Start (Seconds (0.01));
-  // the following means the receiver will run 1 min longer than the sender app.
+
   sinkAppA.Stop (Seconds (runtime + 60.0));
 
   Address sinkAddr(InetSocketAddress(Baddr, Bport));
@@ -166,20 +148,17 @@ int main (int argc, char *argv[])
 
 #endif
 
-  // Set up tracing
   AsciiTraceHelper ascii;
   std::string tfname = fileNameRoot + ".tr";
   AR.EnableAsciiAll (ascii.CreateFileStream (tfname));
-  // Setup tracing for cwnd
-  Simulator::Schedule(Seconds(0.01),&TraceCwnd);       // this Time cannot be 0.0
+  Simulator::Schedule(Seconds(0.01),&TraceCwnd);      
   
 
   Simulator::Schedule(Seconds(10.0),&ChangeDelay, 400);
 
   Simulator::Schedule(Seconds(15.0),&ChangeDelay, 88);
 
-  // This tells ns-3 to generate pcap traces, including "-node#-dev#-" in filename
-  AR.EnablePcapAll (fileNameRoot);    // ".pcap" suffix is added automatically
+  AR.EnablePcapAll (fileNameRoot);  
 
   Simulator::Stop (Seconds (runtime+60));
   Simulator::Run ();
